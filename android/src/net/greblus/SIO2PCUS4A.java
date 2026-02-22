@@ -81,7 +81,7 @@ public class SIO2PCUS4A implements SerialDevice
         } while (deviceIterator.hasNext());
 
         if (dev_found) {
-            pintent = PendingIntent.getBroadcast(sa, 0, new Intent(ACTION_USB_PERMISSION), 0);
+            pintent = PendingIntent.getBroadcast(sa, 0, new Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_MUTABLE);
             manager.requestPermission(device, pintent);
         } else {
             sa.runOnUiThread(new Runnable() {

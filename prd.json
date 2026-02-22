@@ -1,0 +1,217 @@
+{
+  "project": "AspeQt",
+  "branchName": "ralph/android-api36-migration",
+  "description": "Migrate AspeQt Android build to target Android 16 (API 36), fixing crashes, deprecated APIs, and scoped storage compliance",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add android:exported to activity and opt out of predictive back",
+      "description": "As a user on Android 12+, I need the app manifest to declare exported and back-gesture attributes so the app installs and navigates correctly.",
+      "acceptanceCriteria": [
+        "In android/AndroidManifest.xml, add android:exported=\"true\" to the SerialActivity <activity> element (it has MAIN/LAUNCHER and USB intent filters)",
+        "In android/AndroidManifest.xml, add android:enableOnBackInvokedCallback=\"false\" to the <application> element to opt out of predictive back on API 36",
+        "Project compiles without errors"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Fix PendingIntent mutability flag for USB permissions",
+      "description": "As a user connecting a USB SIO2PC device on Android 12+, I need the USB permission request to not crash.",
+      "acceptanceCriteria": [
+        "In android/src/net/greblus/SIO2PCUS4A.java around line 84, add PendingIntent.FLAG_MUTABLE to the PendingIntent.getBroadcast() call",
+        "Project compiles without errors"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Fix BroadcastReceiver export flag for API 33+",
+      "description": "As a user on Android 13+, I need the USB broadcast receiver to be registered with the correct export flag so it doesn't crash.",
+      "acceptanceCriteria": [
+        "In android/src/net/greblus/SerialActivity.java, in the RegisterReceiverRunnable.run() method (around line 242), add API-level check: use Context.RECEIVER_NOT_EXPORTED flag on Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU, fall back to no-flag registration on older APIs",
+        "Project compiles without errors"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Fix deprecated getParcelableExtra call",
+      "description": "As a developer, I want to use the type-safe API for extracting parcelable extras on API 33+.",
+      "acceptanceCriteria": [
+        "In android/src/net/greblus/SerialActivity.java, in the USBReceiver.onReceive() method (around line 251), add API-level check: use intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice.class) on API 33+, fall back to the old overload on older APIs",
+        "Project compiles without errors"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Fix string comparison bug in file dialog",
+      "description": "As a user, I need file dialog cancellation to be detected correctly using .equals() instead of == / !=.",
+      "acceptanceCriteria": [
+        "In android/src/net/greblus/SerialActivity.java around lines 120 and 140, replace != string comparisons with !\"Cancelled\".equals(m_chosen) (or equivalent .equals() pattern)",
+        "All string comparisons against literal strings in SerialActivity.java use .equals()",
+        "Project compiles without errors"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Update Bluetooth permissions in manifest for API 31+",
+      "description": "As a user on Android 12+, I need the correct Bluetooth permissions declared so Bluetooth functionality is not silently blocked.",
+      "acceptanceCriteria": [
+        "In android/AndroidManifest.xml, add android:maxSdkVersion=\"30\" to the existing BLUETOOTH and BLUETOOTH_ADMIN permissions",
+        "Add uses-permission for BLUETOOTH_CONNECT",
+        "Add uses-permission for BLUETOOTH_SCAN with android:usesPermissionFlags=\"neverForLocation\"",
+        "Project compiles without errors"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Add runtime BLUETOOTH_CONNECT permission request",
+      "description": "As a user on Android 12+, I need the app to request BLUETOOTH_CONNECT at runtime before Bluetooth operations.",
+      "acceptanceCriteria": [
+        "In android/src/net/greblus/SerialActivity.java, add a static method (e.g. requestBluetoothPermission()) that checks Build.VERSION.SDK_INT >= 31 and calls requestPermissions() for BLUETOOTH_CONNECT if not already granted",
+        "Call this method from changeDevice() or the SIO2BT constructor before any Bluetooth API calls",
+        "Handle the permission result in onRequestPermissionsResult() in SerialActivity",
+        "Project compiles without errors"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Depends on US-006 for manifest permissions"
+    },
+    {
+      "id": "US-008",
+      "title": "Replace programmatic Bluetooth enable with system intent",
+      "description": "As a user on Android 13+, I need the app to prompt me to enable Bluetooth via a system dialog instead of silently enabling it.",
+      "acceptanceCriteria": [
+        "In android/src/net/greblus/SIO2BT.java, remove both calls to m_BluetoothAdapter.enable() (in constructor line 35 and openDevice() line 45)",
+        "Replace with a call to SerialActivity that launches an ACTION_REQUEST_ENABLE intent",
+        "In android/src/net/greblus/SerialActivity.java, add a static method to launch the Bluetooth enable intent and handle the result in onActivityResult()",
+        "The busy-wait loop in SIO2BT.openDevice() (line 47: while (!m_BluetoothAdapter.isEnabled()) {}) should wait for the intent result rather than spinning",
+        "Project compiles without errors"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Depends on US-007"
+    },
+    {
+      "id": "US-009",
+      "title": "Update manifest storage permissions for scoped storage",
+      "description": "As a developer, I need the manifest updated for scoped storage compliance before implementing SAF.",
+      "acceptanceCriteria": [
+        "In android/AndroidManifest.xml, remove android:requestLegacyExternalStorage=\"true\" from the application element",
+        "Add android:maxSdkVersion=\"28\" to WRITE_EXTERNAL_STORAGE and READ_EXTERNAL_STORAGE permissions",
+        "In android/src/net/greblus/SerialActivity.java, remove the runtime permission request for WRITE_EXTERNAL_STORAGE in onCreate() (lines 62-67) since it is no longer needed on modern APIs",
+        "Project compiles without errors"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Prerequisite for SAF migration stories"
+    },
+    {
+      "id": "US-010",
+      "title": "Replace file open chooser with SAF ACTION_OPEN_DOCUMENT",
+      "description": "As a user on Android 11+, I need to open ATR/XFD/PRO/XEX/CAS/ASPEQT files using the system file picker since raw filesystem browsing is blocked.",
+      "acceptanceCriteria": [
+        "In android/src/net/greblus/SerialActivity.java, replace the fileChooser() method: instead of creating a SimpleFileDialog, launch an ACTION_OPEN_DOCUMENT intent with type */* (Atari file types have no standard MIME)",
+        "Add onActivityResult() override to SerialActivity to handle the file picker result",
+        "In onActivityResult(), extract the content URI from the returned intent, call takePersistableUriPermission() with FLAG_GRANT_READ_URI_PERMISSION",
+        "Copy the selected file from the content URI (via ContentResolver.openInputStream()) to the app's cache directory so existing C++ code can use a regular file path",
+        "Set m_chosen to the cache file path (not the content URI) so the existing C++ polling loop in mainwindow.cpp and diskeditdialog.cpp continues to work unchanged",
+        "Remove the FileChooser Runnable class (no longer needed) or repurpose it to launch the intent",
+        "Project compiles without errors"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Depends on US-009. This handles the 'file open' path. The C++ side polls SerialActivity.m_chosen via JNI and expects a file path string. By copying to app cache, we preserve that contract. Call sites: mainwindow.cpp lines 1344-1357 (disk images), 1870-1885 (session open), 1960-1974 (boot exe), 2008-2019 (cassette), diskeditdialog.cpp 680-692 (add files)."
+    },
+    {
+      "id": "US-011",
+      "title": "Replace file save chooser with SAF ACTION_CREATE_DOCUMENT",
+      "description": "As a user on Android 11+, I need to save disk images and session files using the system file picker.",
+      "acceptanceCriteria": [
+        "In android/src/net/greblus/SerialActivity.java, when runFileChooser() is called with action==1 (FileSave), launch ACTION_CREATE_DOCUMENT instead of ACTION_OPEN_DOCUMENT",
+        "Set the intent MIME type to application/octet-stream and use putExtra(Intent.EXTRA_TITLE, ...) with a default filename if available",
+        "Handle the save result in onActivityResult() — extract the content URI and convert it to a usable file path",
+        "For save: the C++ code writes to a file path, so either write to cache first and copy to the content URI afterwards, or get a ParcelFileDescriptor and convert to a path via /proc/self/fd/",
+        "Set m_chosen to the path the C++ code should write to",
+        "Project compiles without errors"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Depends on US-010. Call sites: mainwindow.cpp lines 1630-1641 (save disk image as), 1924-1936 (save session)."
+    },
+    {
+      "id": "US-012",
+      "title": "Replace folder chooser with SAF ACTION_OPEN_DOCUMENT_TREE",
+      "description": "As a user on Android 11+, I need to select folders for folder images and file extraction using the system folder picker.",
+      "acceptanceCriteria": [
+        "In android/src/net/greblus/SerialActivity.java, replace the dirChooser() method: instead of creating a SimpleFileDialog with FolderChoose, launch an ACTION_OPEN_DOCUMENT_TREE intent",
+        "Handle the folder result in onActivityResult() — extract the tree URI",
+        "Call takePersistableUriPermission() with FLAG_GRANT_READ_URI_PERMISSION | FLAG_GRANT_WRITE_URI_PERMISSION on the tree URI",
+        "Convert the tree URI to a file path that the C++ code can use (via DocumentFile and ContentResolver, or by resolving the underlying path if on primary storage)",
+        "Set m_chosen to the resolved folder path",
+        "Remove the DirChooser Runnable class or repurpose it to launch the intent",
+        "Project compiles without errors"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Depends on US-010. Call sites: mainwindow.cpp lines 1384-1397 (mount folder image), diskeditdialog.cpp lines 618-631 (extract files to dir). The C++ folderimage.cpp code reads directory contents with standard file I/O, so the resolved path must be a real filesystem path."
+    },
+    {
+      "id": "US-013",
+      "title": "Fix QTime midnight wraparound bug in serial port timeouts",
+      "description": "As a user, I need serial port timeouts to work correctly at all times including across midnight.",
+      "acceptanceCriteria": [
+        "In serialport-android.cpp around line 342, replace QTime startTime = QTime::currentTime() with QElapsedTimer timer; timer.start(); and change the elapsed check (line 354) from QTime::currentTime().msecsTo(startTime) to -timer.elapsed()",
+        "In serialport-android.cpp around line 390, apply the same QElapsedTimer replacement for the write timeout loop (line 408)",
+        "Add #include <QElapsedTimer> at the top of the file and remove #include <QTime> if no longer used",
+        "All timeout logic in serialport-android.cpp uses QElapsedTimer instead of QTime",
+        "Project compiles without errors"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Migrate theme from Holo to Material",
+      "description": "As a user, I want the app to use a modern Android theme instead of the outdated Holo theme.",
+      "acceptanceCriteria": [
+        "In android/AndroidManifest.xml, change android:theme=\"@android:style/Theme.Holo\" to @android:style/Theme.Material.Light (no extra dependencies needed)",
+        "Project compiles without errors"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Using @android:style/Theme.Material.Light avoids needing AppCompat or Material Components library dependencies"
+    },
+    {
+      "id": "US-015",
+      "title": "Verify edge-to-edge display compliance for API 36",
+      "description": "As a user on Android 16, I need the app UI to not be obscured by system bars since edge-to-edge is mandatory.",
+      "acceptanceCriteria": [
+        "Review the Qt Android platform plugin behavior for system bar insets",
+        "If Qt does not handle insets automatically, add window insets handling in SerialActivity.java to ensure the Qt rendering surface is not obscured by status bar or navigation bar",
+        "Add a comment in SerialActivity.java documenting the edge-to-edge status (whether Qt handles it or manual adjustment was needed)",
+        "Project compiles without errors"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "Since this is a Qt app, the Qt rendering surface may handle edge-to-edge automatically. This story is primarily investigation and verification."
+    }
+  ]
+}

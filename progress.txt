@@ -1,0 +1,38 @@
+# Ralph Progress Log
+Started: Sun Feb 22 18:18:18 CET 2026
+
+## Codebase Patterns
+- AndroidManifest.xml is at `android/AndroidManifest.xml` — all manifest attributes are on single long lines
+- No Android build toolchain (gradle/SDK) available locally; validate XML with `xmllint --noout`
+- This is a Qt/C++ app with Android Java glue code in `android/src/net/greblus/`
+- No Java compiler (javac) available locally; validate Java changes by manual review
+---
+
+## 2026-02-22 - US-001
+Thread: https://ampcode.com/threads/T-019c865b-f6a3-7344-9a1c-b104f58b09a1
+- Added `android:exported="true"` to the SerialActivity `<activity>` element
+- Added `android:enableOnBackInvokedCallback="false"` to the `<application>` element
+- Files changed: `android/AndroidManifest.xml`
+- **Learnings for future iterations:**
+  - Manifest is a single file with long attribute lines — edits target specific elements
+  - XML validated with `xmllint --noout`; no Android SDK available for full compilation check
+---
+
+## 2026-02-22 - US-002
+Thread: https://ampcode.com/threads/T-019c865c-c951-7047-b31d-a3b4ac152ab5
+- Added `PendingIntent.FLAG_MUTABLE` to the `PendingIntent.getBroadcast()` call in SIO2PCUS4A.java line 84
+- Files changed: `android/src/net/greblus/SIO2PCUS4A.java`
+- **Learnings for future iterations:**
+  - No Java compiler (javac) or Android SDK available locally; changes validated by manual code review only
+  - `PendingIntent.FLAG_MUTABLE` is required on API 31+ when the PendingIntent needs to be filled by the system (e.g., USB permission extras)
+---
+
+## 2026-02-22 - US-003
+Thread: https://ampcode.com/threads/T-019c865d-8ac6-70d0-84f3-04a8f791d981
+- Added API-level check in `RegisterReceiverRunnable.run()`: uses `Context.RECEIVER_NOT_EXPORTED` flag on API 33+ (TIRAMISU), falls back to no-flag registration on older APIs
+- Files changed: `android/src/net/greblus/SerialActivity.java`
+- **Learnings for future iterations:**
+  - `Build.VERSION_CODES.TIRAMISU` is the constant for API 33 (Android 13)
+  - `Context.RECEIVER_NOT_EXPORTED` is required for non-exported receivers on API 33+ to prevent `SecurityException`
+  - `Build` and `Context` imports were already present in SerialActivity.java
+---

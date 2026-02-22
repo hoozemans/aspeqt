@@ -252,7 +252,12 @@ public class SerialActivity extends QtActivity
             public void onReceive(Context context, Intent intent) {
             if (intent.getAction().equals("com.android.example.USB_PERMISSION"))
             synchronized (this) {
-                UsbDevice device = (UsbDevice)intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                UsbDevice device;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice.class);
+                } else {
+                    device = (UsbDevice) intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                }
                 if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                     Log.v("USB", "Received permission result OK");
                     if(device != null){

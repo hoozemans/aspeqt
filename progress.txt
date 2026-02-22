@@ -36,3 +36,33 @@ Thread: https://ampcode.com/threads/T-019c865d-8ac6-70d0-84f3-04a8f791d981
   - `Context.RECEIVER_NOT_EXPORTED` is required for non-exported receivers on API 33+ to prevent `SecurityException`
   - `Build` and `Context` imports were already present in SerialActivity.java
 ---
+
+## 2026-02-22 - US-004
+Thread: https://ampcode.com/threads/T-019c865e-6cf9-73d9-bf87-359da530a449
+- Added API-level check in `USBReceiver.onReceive()`: uses type-safe `intent.getParcelableExtra(key, UsbDevice.class)` on API 33+ (TIRAMISU), falls back to cast-based overload on older APIs
+- Files changed: `android/src/net/greblus/SerialActivity.java`
+- **Learnings for future iterations:**
+  - `intent.getParcelableExtra(String, Class<T>)` was added in API 33 (TIRAMISU) — always pair with `Build.VERSION_CODES.TIRAMISU` check
+  - The `USBReceiver` inner class is at the bottom of SerialActivity.java, outside the main class body
+---
+
+## 2026-02-22 - US-005
+Thread: https://ampcode.com/threads/T-019c865f-2802-722e-beb8-26a93b6cc910
+- Replaced `m_chosen != "Cancelled"` with `!"Cancelled".equals(m_chosen)` in both `fileChooser()` (line 120) and `dirChooser()` (line 140)
+- Verified no other `==`/`!=` string comparisons remain in SerialActivity.java
+- Files changed: `android/src/net/greblus/SerialActivity.java`
+- **Learnings for future iterations:**
+  - Java `!=` on strings compares references, not values — always use `.equals()` for string content comparison
+  - Using `"literal".equals(variable)` pattern avoids NullPointerException if variable is null
+---
+
+## 2026-02-22 - US-006
+Thread: https://ampcode.com/threads/T-019c865f-fafd-72be-b0d3-d6cb0863bbc7
+- Added `android:maxSdkVersion="30"` to existing BLUETOOTH and BLUETOOTH_ADMIN permissions
+- Added `BLUETOOTH_CONNECT` and `BLUETOOTH_SCAN` (with `neverForLocation` flag) permissions
+- Files changed: `android/AndroidManifest.xml`
+- **Learnings for future iterations:**
+  - On API 31+ (Android 12), legacy BLUETOOTH/BLUETOOTH_ADMIN are replaced by granular BLUETOOTH_CONNECT, BLUETOOTH_SCAN, BLUETOOTH_ADVERTISE
+  - Use `android:maxSdkVersion="30"` to limit legacy permissions to pre-API 31 devices
+  - `android:usesPermissionFlags="neverForLocation"` on BLUETOOTH_SCAN avoids requiring location permission
+---

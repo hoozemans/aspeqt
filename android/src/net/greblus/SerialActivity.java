@@ -117,7 +117,7 @@ public class SerialActivity extends QtActivity
                     {
                             // The code in this function will be executed when the dialog OK button is pushed
                             m_chosen = chosenDir;
-                            if (m_chosen != "Cancelled") Toast.makeText(SerialActivity.this, getResources().getString(R.string.file_chosen) +
+                            if (!"Cancelled".equals(m_chosen)) Toast.makeText(SerialActivity.this, getResources().getString(R.string.file_chosen) +
                                             m_chosen, Toast.LENGTH_LONG).show();
                     }
             });
@@ -137,7 +137,7 @@ public class SerialActivity extends QtActivity
                     {
                             // The code in this function will be executed when the dialog OK button is pushed
                             m_chosen = chosenDir;
-                            if (m_chosen != "Cancelled") Toast.makeText(SerialActivity.this, getResources().getString(R.string.dir_chosen) +
+                            if (!"Cancelled".equals(m_chosen)) Toast.makeText(SerialActivity.this, getResources().getString(R.string.dir_chosen) +
                                             m_chosen, Toast.LENGTH_LONG).show();
                     }
             });

@@ -27,6 +27,7 @@ import android.provider.OpenableColumns;
 import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
 import java.nio.ByteBuffer;
@@ -44,6 +45,7 @@ public class SerialActivity extends QtActivity
         private static final int REQUEST_BLUETOOTH_CONNECT = 2;
         private static final int REQUEST_ENABLE_BT = 3;
         private static final int REQUEST_FILE_OPEN = 4;
+        private static final int REQUEST_FILE_SAVE = 5;
         private static final Object bluetoothEnableLock = new Object();
         private static volatile boolean bluetoothEnableComplete = false;
         private static boolean debug = false;
@@ -61,6 +63,8 @@ public class SerialActivity extends QtActivity
         private static SerialDevice m_device = null;
         private static int m_serial = 0;
         public static String bluetoothName;
+        private static Uri m_pendingSaveUri = null;
+        private static String m_pendingSaveCachePath = null;
 
         @Override
 	public void onCreate(Bundle savedInstanceState)
@@ -85,6 +89,7 @@ public class SerialActivity extends QtActivity
         }
 
         public static void runFileChooser(int filter, int action, String dir) {
+            flushPendingSave();
             Log.i("ASPEQT:", "DIR:" + dir);
             m_chosen = "None";
             m_filter = filter;
@@ -100,6 +105,7 @@ public class SerialActivity extends QtActivity
          }
 
          public static void runDirChooser(String dir) {
+            flushPendingSave();
             m_dir = dir;
             m_chosen = "None";
             m_filter = 0;
@@ -110,6 +116,7 @@ public class SerialActivity extends QtActivity
         @Override
 	protected void onDestroy()
 	{
+                flushPendingSave();
                 super.onDestroy();
                 s_activity = null;
                 m_device.closeDevice();
@@ -125,19 +132,13 @@ public class SerialActivity extends QtActivity
                         | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
                 startActivityForResult(intent, REQUEST_FILE_OPEN);
             } else {
-                SimpleFileDialog FileOpenDialog =  new SimpleFileDialog(SerialActivity.this, m_action, m_filter, m_dir,
-                                                                new SimpleFileDialog.SimpleFileDialogListener()
-                {
-                        @Override
-                        public void onChosenDir(String chosenDir)
-                        {
-                                m_chosen = chosenDir;
-                                if (!"Cancelled".equals(m_chosen)) Toast.makeText(SerialActivity.this, getResources().getString(R.string.file_chosen) +
-                                                m_chosen, Toast.LENGTH_LONG).show();
-                        }
-                });
-                FileOpenDialog.Default_File_Name = "";
-                FileOpenDialog.chooseFile_or_Dir();
+                flushPendingSave();
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/octet-stream");
+                intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                startActivityForResult(intent, REQUEST_FILE_SAVE);
             }
         }
 
@@ -274,7 +275,60 @@ public class SerialActivity extends QtActivity
                 } else {
                     m_chosen = "Cancelled";
                 }
+            } else if (requestCode == REQUEST_FILE_SAVE) {
+                if (resultCode == RESULT_OK && data != null) {
+                    Uri uri = data.getData();
+                    if (uri != null) {
+                        try {
+                            getContentResolver().takePersistableUriPermission(uri,
+                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        } catch (SecurityException e) {
+                            Log.w("SAF", "Could not take persistable write permission", e);
+                        }
+                        String fileName = getFileNameFromUri(uri);
+                        if (fileName == null) fileName = "saved_file";
+                        File cacheFile = new File(getCacheDir(), fileName);
+                        m_pendingSaveUri = uri;
+                        m_pendingSaveCachePath = cacheFile.getAbsolutePath();
+                        m_chosen = m_pendingSaveCachePath;
+                        Toast.makeText(this, getResources().getString(R.string.file_chosen) +
+                                fileName, Toast.LENGTH_LONG).show();
+                    } else {
+                        m_chosen = "Cancelled";
+                    }
+                } else {
+                    m_chosen = "Cancelled";
+                }
             }
+        }
+
+        private static void flushPendingSave() {
+            if (m_pendingSaveUri == null || m_pendingSaveCachePath == null || s_activity == null) return;
+            File cacheFile = new File(m_pendingSaveCachePath);
+            if (!cacheFile.exists() || cacheFile.length() == 0) {
+                m_pendingSaveUri = null;
+                m_pendingSaveCachePath = null;
+                return;
+            }
+            InputStream is = null;
+            OutputStream os = null;
+            try {
+                is = new FileInputStream(cacheFile);
+                os = s_activity.getContentResolver().openOutputStream(m_pendingSaveUri);
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    os.write(buffer, 0, bytesRead);
+                }
+                Log.i("SAF", "Flushed save to content URI: " + m_pendingSaveUri);
+            } catch (Exception e) {
+                Log.e("SAF", "Failed to flush save to content URI", e);
+            } finally {
+                try { if (is != null) is.close(); } catch (Exception e) {}
+                try { if (os != null) os.close(); } catch (Exception e) {}
+            }
+            m_pendingSaveUri = null;
+            m_pendingSaveCachePath = null;
         }
 
         private String copyUriToCacheDir(Uri uri) {

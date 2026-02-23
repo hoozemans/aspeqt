@@ -196,7 +196,7 @@
         "Project compiles without errors"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Using @android:style/Theme.Material.Light avoids needing AppCompat or Material Components library dependencies"
     },
     {
@@ -210,7 +210,7 @@
         "Project compiles without errors"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Since this is a Qt app, the Qt rendering surface may handle edge-to-edge automatically. This story is primarily investigation and verification."
     }
   ]

@@ -15,6 +15,8 @@ Started: Sun Feb 22 18:18:18 CET 2026
 - SAF file save: C++ writes to cache file, then `flushPendingSave()` copies cache→content URI; flush is called at start of runFileChooser/runDirChooser and in onDestroy
 - SAF request codes: 4=REQUEST_FILE_OPEN, 5=REQUEST_FILE_SAVE, 6=REQUEST_DIR_CHOOSE
 - SAF tree URIs (ACTION_OPEN_DOCUMENT_TREE) use `DocumentsContract.getTreeDocumentId()` to extract `type:path` — "primary" maps to `Environment.getExternalStorageDirectory()`, other types map to `/storage/<type>/`
+- Edge-to-edge: Qt 5.x does NOT handle system bar insets automatically; must use `View.setOnApplyWindowInsetsListener` on `android.R.id.content` to pad the Qt rendering surface away from system bars
+- `WindowInsets.Type.systemBars()`, `WindowInsets.Type.displayCutout()`, and `WindowInsets.CONSUMED` require API 30+
 ---
 
 ## 2026-02-22 - US-001
@@ -173,4 +175,29 @@ Thread: https://ampcode.com/threads/T-019c8a03-4eda-777c-8872-06a3bfd6dd56
    - `QTime::currentTime().msecsTo()` wraps at midnight — `QElapsedTimer` is monotonic and avoids this
    - The timeout loop uses negative elapsed values (elapsed = -timer.elapsed()) so the condition `elapsed > -timeOut` stays unchanged
    - No build toolchain available; validated by grep to confirm no remaining QTime usage
+   ---
+
+   ## 2026-02-23 - US-014
+   Thread: https://ampcode.com/threads/T-019c8a11-4566-747f-8f7a-cee9c9ef7acd
+   - Changed `android:theme="@android:style/Theme.Holo"` to `@android:style/Theme.Material.Light` on the SerialActivity `<activity>` element
+   - Files changed: `android/AndroidManifest.xml`
+   - **Learnings for future iterations:**
+   - `Theme.Material.Light` is a built-in Android framework theme (API 21+), no AppCompat or Material Components library needed
+   - Theme is set on the `<activity>` element, not the `<application>` element in this project
+   ---
+
+   ## 2026-02-23 - US-015
+   Thread: https://ampcode.com/threads/T-019c8a11-f515-73ea-bed3-7006376f634e
+   - Investigated Qt Android platform plugin behavior: Qt 5.x does NOT handle system bar insets automatically
+   - Added `View.setOnApplyWindowInsetsListener` in `onCreate()` to pad the `android.R.id.content` view with system bar and display cutout insets
+   - Guard: `Build.VERSION.SDK_INT >= 30` (API 30+ provides `WindowInsets.Type` API)
+   - Added detailed comment in SerialActivity.java documenting edge-to-edge status and rationale
+   - Added imports: `android.view.View`, `android.view.WindowInsets`, `android.graphics.Insets`
+   - Files changed: `android/src/net/greblus/SerialActivity.java`
+   - **Learnings for future iterations:**
+   - On API 35+ edge-to-edge is enforced; on API 36+ the `windowOptOutEdgeToEdgeEnforcement` opt-out attribute is removed entirely
+   - Qt 6.9+ adds Safe Areas support, but Qt 5.x requires manual insets handling in Java
+   - `WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()` covers status bar, navigation bar, and camera cutout
+   - `WindowInsets.CONSUMED` prevents insets from being dispatched to child views (avoids double-application)
+   - Setting padding on `android.R.id.content` (the FrameLayout containing Qt's view hierarchy) pushes the Qt rendering surface inward
    ---

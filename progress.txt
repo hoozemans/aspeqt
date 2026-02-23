@@ -10,6 +10,8 @@ Started: Sun Feb 22 18:18:18 CET 2026
 - SerialActivity request codes: 2=REQUEST_BLUETOOTH_CONNECT, 3=REQUEST_ENABLE_BT (request code 1 for WRITE_EXTERNAL_STORAGE was removed in US-009)
 - Storage permissions (WRITE/READ_EXTERNAL_STORAGE) are limited to maxSdkVersion=28; SAF must be used on API 29+
 - For async UI↔background thread coordination, use `Object.wait()/notifyAll()` pattern (see requestBluetoothEnable/waitForBluetoothEnabled)
+- SAF request codes: 4=REQUEST_FILE_OPEN (file open via ACTION_OPEN_DOCUMENT); FileChooser Runnable still delegates to `fileChooser()` which branches on m_action
+- SAF file open copies content URI to `getCacheDir()` so C++ polling code continues to get a regular file path via m_chosen
 ---
 
 ## 2026-02-22 - US-001
@@ -109,4 +111,21 @@ Thread: https://ampcode.com/threads/T-019c8a03-4eda-777c-8872-06a3bfd6dd56
   - `requestLegacyExternalStorage` was only effective on API 29 (Android 10); on API 30+ it's ignored, so removing it has no effect on older devices
   - `maxSdkVersion="28"` means the storage permissions are only granted on API ≤28; on API 29+ the app must use SAF (Storage Access Framework) or MediaStore
   - The runtime permission request for WRITE_EXTERNAL_STORAGE (request code 1) is no longer needed since the permission is capped at API 28
+  ---
+
+  ## 2026-02-23 - US-010
+  Thread: https://ampcode.com/threads/T-019c8a06-919b-704b-bbe9-a4d4f9c23779
+  - Replaced `fileChooser()` to launch `ACTION_OPEN_DOCUMENT` SAF intent when `m_action` is "FileOpen"
+  - Added `onActivityResult()` handling for `REQUEST_FILE_OPEN` (code 4): extracts content URI, calls `takePersistableUriPermission()`, copies file to cache dir
+  - Added `copyUriToCacheDir()` helper: reads from `ContentResolver.openInputStream()`, writes to `getCacheDir()` + filename
+  - Added `getFileNameFromUri()` helper: queries `OpenableColumns.DISPLAY_NAME` for content URIs, falls back to `uri.getLastPathSegment()`
+  - `m_chosen` is set to the cache file path, preserving the JNI polling contract with C++ code
+  - Kept `SimpleFileDialog` for "FileSave" action (will be replaced by US-011)
+  - `FileChooser` Runnable kept — it delegates to `fileChooser()` which now branches on action
+  - Files changed: `android/src/net/greblus/SerialActivity.java`
+  - **Learnings for future iterations:**
+  - `ACTION_OPEN_DOCUMENT` returns a content URI, not a file path — must copy to cache for C++ interop
+  - `takePersistableUriPermission` can throw `SecurityException` if the provider doesn't support it — wrap in try/catch
+  - `OpenableColumns.DISPLAY_NAME` is the reliable way to get original filename from a content URI
+  - The `FileChooser` Runnable just calls `fileChooser()` — no need to remove it when modifying behavior
   ---

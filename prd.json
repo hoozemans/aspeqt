@@ -136,7 +136,7 @@
         "Project compiles without errors"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009. This handles the 'file open' path. The C++ side polls SerialActivity.m_chosen via JNI and expects a file path string. By copying to app cache, we preserve that contract. Call sites: mainwindow.cpp lines 1344-1357 (disk images), 1870-1885 (session open), 1960-1974 (boot exe), 2008-2019 (cassette), diskeditdialog.cpp 680-692 (add files)."
     },
     {

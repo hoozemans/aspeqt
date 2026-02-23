@@ -34,7 +34,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import android.widget.Toast;
+import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.graphics.Insets;
 
 import android.os.Build;
 import android.content.pm.PackageManager;
@@ -81,6 +84,25 @@ public class SerialActivity extends QtActivity
 
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             sendBufAddr(rbuf, wbuf);
+
+            // Edge-to-edge compliance: On API 35+ edge-to-edge is enforced, and on
+            // API 36+ the opt-out flag (windowOptOutEdgeToEdgeEnforcement) is removed.
+            // Qt 5.x does not handle system bar insets automatically (Qt 6.9+ adds
+            // Safe Areas). We pad the content view to keep the Qt rendering surface
+            // clear of status bar, navigation bar, and display cutout.
+            if (Build.VERSION.SDK_INT >= 30) {
+                View contentView = getWindow().getDecorView().findViewById(android.R.id.content);
+                contentView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                    @Override
+                    public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                        Insets systemBars = insets.getInsets(
+                                WindowInsets.Type.systemBars()
+                                | WindowInsets.Type.displayCutout());
+                        v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+                        return WindowInsets.CONSUMED;
+                    }
+                });
+            }
         }
 
         @Override

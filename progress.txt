@@ -162,3 +162,15 @@ Thread: https://ampcode.com/threads/T-019c8a03-4eda-777c-8872-06a3bfd6dd56
    - Non-primary volumes (SD cards etc.) map to `/storage/<volumeId>/`
    - If the selected folder is not on a resolvable filesystem path (e.g., cloud provider), `getPathFromTreeUri()` returns null and the operation is cancelled with a user-facing toast
    ---
+
+   ## 2026-02-23 - US-013
+   Thread: https://ampcode.com/threads/T-019c8a10-2c65-71ec-9bb6-c483c6330aa6
+   - Replaced `QTime::currentTime()` with `QElapsedTimer` in both `readRawFrame()` and `writeRawFrame()` timeout loops
+   - Changed `#include <QTime>` to `#include <QElapsedTimer>`
+   - Elapsed check changed from `QTime::currentTime().msecsTo(startTime)` to `-timer.elapsed()` (preserves same sign convention)
+   - Files changed: `serialport-android.cpp`
+   - **Learnings for future iterations:**
+   - `QTime::currentTime().msecsTo()` wraps at midnight — `QElapsedTimer` is monotonic and avoids this
+   - The timeout loop uses negative elapsed values (elapsed = -timer.elapsed()) so the condition `elapsed > -timeOut` stays unchanged
+   - No build toolchain available; validated by grep to confirm no remaining QTime usage
+   ---

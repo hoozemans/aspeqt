@@ -46,6 +46,7 @@ public class SerialActivity extends QtActivity
         private static final int REQUEST_ENABLE_BT = 3;
         private static final int REQUEST_FILE_OPEN = 4;
         private static final int REQUEST_FILE_SAVE = 5;
+        private static final int REQUEST_DIR_CHOOSE = 6;
         private static final Object bluetoothEnableLock = new Object();
         private static volatile boolean bluetoothEnableComplete = false;
         private static boolean debug = false;
@@ -144,20 +145,11 @@ public class SerialActivity extends QtActivity
 
         public void dirChooser()
         {
-            SimpleFileDialog FileOpenDialog =  new SimpleFileDialog(SerialActivity.this, "FolderChoose", m_filter, m_dir,
-                                                            new SimpleFileDialog.SimpleFileDialogListener()
-            {
-                    @Override
-                    public void onChosenDir(String chosenDir)
-                    {
-                            // The code in this function will be executed when the dialog OK button is pushed
-                            m_chosen = chosenDir;
-                            if (!"Cancelled".equals(m_chosen)) Toast.makeText(SerialActivity.this, getResources().getString(R.string.dir_chosen) +
-                                            m_chosen, Toast.LENGTH_LONG).show();
-                    }
-            });
-
-            FileOpenDialog.chooseFile_or_Dir();
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, REQUEST_DIR_CHOOSE);
         }
 
         public static void registerBroadcastReceiver() {
@@ -275,6 +267,32 @@ public class SerialActivity extends QtActivity
                 } else {
                     m_chosen = "Cancelled";
                 }
+            } else if (requestCode == REQUEST_DIR_CHOOSE) {
+                if (resultCode == RESULT_OK && data != null) {
+                    Uri treeUri = data.getData();
+                    if (treeUri != null) {
+                        try {
+                            getContentResolver().takePersistableUriPermission(treeUri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        } catch (SecurityException e) {
+                            Log.w("SAF", "Could not take persistable tree permission", e);
+                        }
+                        String path = getPathFromTreeUri(treeUri);
+                        if (path != null) {
+                            m_chosen = path;
+                            Toast.makeText(this, getResources().getString(R.string.dir_chosen) +
+                                    m_chosen, Toast.LENGTH_LONG).show();
+                        } else {
+                            m_chosen = "Cancelled";
+                            Toast.makeText(this, "Cannot access this folder directly", Toast.LENGTH_LONG).show();
+                        }
+                    } else {
+                        m_chosen = "Cancelled";
+                    }
+                } else {
+                    m_chosen = "Cancelled";
+                }
             } else if (requestCode == REQUEST_FILE_SAVE) {
                 if (resultCode == RESULT_OK && data != null) {
                     Uri uri = data.getData();
@@ -372,6 +390,25 @@ public class SerialActivity extends QtActivity
                 result = uri.getLastPathSegment();
             }
             return result;
+        }
+
+        private String getPathFromTreeUri(Uri treeUri) {
+            String docId = android.provider.DocumentsContract.getTreeDocumentId(treeUri);
+            if (docId == null) return null;
+            String[] split = docId.split(":");
+            if (split.length < 2) return null;
+            String type = split[0];
+            String relativePath = split[1];
+            if ("primary".equalsIgnoreCase(type)) {
+                return android.os.Environment.getExternalStorageDirectory().getAbsolutePath()
+                        + "/" + relativePath;
+            } else {
+                File storageDir = new File("/storage/" + type + "/" + relativePath);
+                if (storageDir.exists()) {
+                    return storageDir.getAbsolutePath();
+                }
+            }
+            return null;
         }
 
         public static int openDevice() {

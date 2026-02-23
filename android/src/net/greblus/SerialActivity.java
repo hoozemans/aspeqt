@@ -65,13 +65,6 @@ public class SerialActivity extends QtActivity
 
             registerBroadcastReceiver();
 
-            if (Build.VERSION.SDK_INT >= 23) {
-                if (this.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                        != PackageManager.PERMISSION_GRANTED) {
-                    this.requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
-                }
-            }
-
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             sendBufAddr(rbuf, wbuf);
         }

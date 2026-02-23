@@ -169,7 +169,7 @@
         "Project compiles without errors"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-010. Call sites: mainwindow.cpp lines 1384-1397 (mount folder image), diskeditdialog.cpp lines 618-631 (extract files to dir). The C++ folderimage.cpp code reads directory contents with standard file I/O, so the resolved path must be a real filesystem path."
     },
     {

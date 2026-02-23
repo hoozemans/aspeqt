@@ -13,7 +13,8 @@ Started: Sun Feb 22 18:18:18 CET 2026
 - SAF request codes: 4=REQUEST_FILE_OPEN (file open via ACTION_OPEN_DOCUMENT); FileChooser Runnable still delegates to `fileChooser()` which branches on m_action
 - SAF file open copies content URI to `getCacheDir()` so C++ polling code continues to get a regular file path via m_chosen
 - SAF file save: C++ writes to cache file, then `flushPendingSave()` copies cache→content URI; flush is called at start of runFileChooser/runDirChooser and in onDestroy
-- SAF request codes: 4=REQUEST_FILE_OPEN, 5=REQUEST_FILE_SAVE
+- SAF request codes: 4=REQUEST_FILE_OPEN, 5=REQUEST_FILE_SAVE, 6=REQUEST_DIR_CHOOSE
+- SAF tree URIs (ACTION_OPEN_DOCUMENT_TREE) use `DocumentsContract.getTreeDocumentId()` to extract `type:path` — "primary" maps to `Environment.getExternalStorageDirectory()`, other types map to `/storage/<type>/`
 ---
 
 ## 2026-02-22 - US-001
@@ -145,4 +146,19 @@ Thread: https://ampcode.com/threads/T-019c8a03-4eda-777c-8872-06a3bfd6dd56
    - `ACTION_CREATE_DOCUMENT` requires `CATEGORY_OPENABLE` and `application/octet-stream` MIME type for arbitrary binary files
    - Cache file + deferred copy-back is needed because C++ writes synchronously and there's no callback to Java after write completion
    - `flushPendingSave()` must be called before the next file operation to ensure the previous save reaches the content URI
-  ---
+   ---
+
+   ## 2026-02-23 - US-012
+   Thread: https://ampcode.com/threads/T-019c8a0e-915c-769b-85d0-a9b953b54689
+   - Replaced `dirChooser()` — removed `SimpleFileDialog` "FolderChoose" and replaced with SAF `ACTION_OPEN_DOCUMENT_TREE` intent
+   - Added `REQUEST_DIR_CHOOSE` (code 6) handling in `onActivityResult()`: extracts tree URI, takes persistable read+write permission
+   - Added `getPathFromTreeUri()` helper: uses `DocumentsContract.getTreeDocumentId()` to parse `type:relativePath` from the tree document ID, resolves "primary" to `Environment.getExternalStorageDirectory()` and other volume types to `/storage/<type>/`
+   - `m_chosen` set to resolved filesystem path so C++ `folderimage.cpp` standard file I/O continues to work
+   - `DirChooser` Runnable kept — it delegates to `dirChooser()` which now launches the SAF intent
+   - Files changed: `android/src/net/greblus/SerialActivity.java`
+   - **Learnings for future iterations:**
+   - `ACTION_OPEN_DOCUMENT_TREE` returns a tree URI, not a file path — must convert via `DocumentsContract.getTreeDocumentId()` which returns `type:path` format
+   - "primary" volume type maps to `Environment.getExternalStorageDirectory()` (typically `/storage/emulated/0`)
+   - Non-primary volumes (SD cards etc.) map to `/storage/<volumeId>/`
+   - If the selected folder is not on a resolvable filesystem path (e.g., cloud provider), `getPathFromTreeUri()` returns null and the operation is cancelled with a user-facing toast
+   ---

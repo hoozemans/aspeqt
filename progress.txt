@@ -12,6 +12,8 @@ Started: Sun Feb 22 18:18:18 CET 2026
 - For async UI↔background thread coordination, use `Object.wait()/notifyAll()` pattern (see requestBluetoothEnable/waitForBluetoothEnabled)
 - SAF request codes: 4=REQUEST_FILE_OPEN (file open via ACTION_OPEN_DOCUMENT); FileChooser Runnable still delegates to `fileChooser()` which branches on m_action
 - SAF file open copies content URI to `getCacheDir()` so C++ polling code continues to get a regular file path via m_chosen
+- SAF file save: C++ writes to cache file, then `flushPendingSave()` copies cache→content URI; flush is called at start of runFileChooser/runDirChooser and in onDestroy
+- SAF request codes: 4=REQUEST_FILE_OPEN, 5=REQUEST_FILE_SAVE
 ---
 
 ## 2026-02-22 - US-001
@@ -128,4 +130,19 @@ Thread: https://ampcode.com/threads/T-019c8a03-4eda-777c-8872-06a3bfd6dd56
   - `takePersistableUriPermission` can throw `SecurityException` if the provider doesn't support it — wrap in try/catch
   - `OpenableColumns.DISPLAY_NAME` is the reliable way to get original filename from a content URI
   - The `FileChooser` Runnable just calls `fileChooser()` — no need to remove it when modifying behavior
+  ---
+
+  ## 2026-02-23 - US-011
+  Thread: https://ampcode.com/threads/T-019c8a09-0e47-7368-a7d5-892813615ee3
+  - Replaced `SimpleFileDialog` FileSave path in `fileChooser()` with SAF `ACTION_CREATE_DOCUMENT` intent
+  - Added `REQUEST_FILE_SAVE` (code 5) handling in `onActivityResult()`: extracts content URI, takes persistable write permission, generates cache file path with original filename
+  - Added `flushPendingSave()` method: copies from cache file to content URI after C++ writes
+  - `flushPendingSave()` called at start of `runFileChooser()`, `runDirChooser()`, and in `onDestroy()` to ensure data reaches user's chosen save location
+  - `m_chosen` set to cache file path (preserves extension for `saveAs()` file type detection and JNI contract)
+  - Files changed: `android/src/net/greblus/SerialActivity.java`
+  - **Learnings for future iterations:**
+   - `saveAs()` uses `fileName.endsWith()` to determine file format — the path must have the correct extension, ruling out `/proc/self/fd/N`
+   - `ACTION_CREATE_DOCUMENT` requires `CATEGORY_OPENABLE` and `application/octet-stream` MIME type for arbitrary binary files
+   - Cache file + deferred copy-back is needed because C++ writes synchronously and there's no callback to Java after write completion
+   - `flushPendingSave()` must be called before the next file operation to ensure the previous save reaches the content URI
   ---

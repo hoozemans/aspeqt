@@ -152,7 +152,7 @@
         "Project compiles without errors"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-010. Call sites: mainwindow.cpp lines 1630-1641 (save disk image as), 1924-1936 (save session)."
     },
     {

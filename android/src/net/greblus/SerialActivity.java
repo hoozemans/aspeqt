@@ -21,6 +21,14 @@ import android.content.BroadcastReceiver;
 
 import android.bluetooth.BluetoothAdapter;
 
+import android.net.Uri;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
+import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.FileOutputStream;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -35,6 +43,7 @@ public class SerialActivity extends QtActivity
 {
         private static final int REQUEST_BLUETOOTH_CONNECT = 2;
         private static final int REQUEST_ENABLE_BT = 3;
+        private static final int REQUEST_FILE_OPEN = 4;
         private static final Object bluetoothEnableLock = new Object();
         private static volatile boolean bluetoothEnableComplete = false;
         private static boolean debug = false;
@@ -108,22 +117,28 @@ public class SerialActivity extends QtActivity
 
         public void fileChooser()
         {
-            SimpleFileDialog FileOpenDialog =  new SimpleFileDialog(SerialActivity.this, m_action, m_filter, m_dir,
-                                                            new SimpleFileDialog.SimpleFileDialogListener()
-            {
-                    @Override
-                    public void onChosenDir(String chosenDir)
-                    {
-                            // The code in this function will be executed when the dialog OK button is pushed
-                            m_chosen = chosenDir;
-                            if (!"Cancelled".equals(m_chosen)) Toast.makeText(SerialActivity.this, getResources().getString(R.string.file_chosen) +
-                                            m_chosen, Toast.LENGTH_LONG).show();
-                    }
-            });
-
-            //You can change the default filename using the public variable "Default_File_Name"
-            FileOpenDialog.Default_File_Name = "";
-            FileOpenDialog.chooseFile_or_Dir();
+            if ("FileOpen".equals(m_action)) {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                startActivityForResult(intent, REQUEST_FILE_OPEN);
+            } else {
+                SimpleFileDialog FileOpenDialog =  new SimpleFileDialog(SerialActivity.this, m_action, m_filter, m_dir,
+                                                                new SimpleFileDialog.SimpleFileDialogListener()
+                {
+                        @Override
+                        public void onChosenDir(String chosenDir)
+                        {
+                                m_chosen = chosenDir;
+                                if (!"Cancelled".equals(m_chosen)) Toast.makeText(SerialActivity.this, getResources().getString(R.string.file_chosen) +
+                                                m_chosen, Toast.LENGTH_LONG).show();
+                        }
+                });
+                FileOpenDialog.Default_File_Name = "";
+                FileOpenDialog.chooseFile_or_Dir();
+            }
         }
 
         public void dirChooser()
@@ -235,7 +250,74 @@ public class SerialActivity extends QtActivity
                     bluetoothEnableComplete = true;
                     bluetoothEnableLock.notifyAll();
                 }
+            } else if (requestCode == REQUEST_FILE_OPEN) {
+                if (resultCode == RESULT_OK && data != null) {
+                    Uri uri = data.getData();
+                    if (uri != null) {
+                        try {
+                            getContentResolver().takePersistableUriPermission(uri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        } catch (SecurityException e) {
+                            Log.w("SAF", "Could not take persistable permission", e);
+                        }
+                        String cachedPath = copyUriToCacheDir(uri);
+                        if (cachedPath != null) {
+                            m_chosen = cachedPath;
+                            Toast.makeText(this, getResources().getString(R.string.file_chosen) +
+                                    m_chosen, Toast.LENGTH_LONG).show();
+                        } else {
+                            m_chosen = "Cancelled";
+                        }
+                    } else {
+                        m_chosen = "Cancelled";
+                    }
+                } else {
+                    m_chosen = "Cancelled";
+                }
             }
+        }
+
+        private String copyUriToCacheDir(Uri uri) {
+            String fileName = getFileNameFromUri(uri);
+            if (fileName == null) fileName = "temp_file";
+            File cacheFile = new File(getCacheDir(), fileName);
+            InputStream is = null;
+            OutputStream os = null;
+            try {
+                is = getContentResolver().openInputStream(uri);
+                os = new FileOutputStream(cacheFile);
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    os.write(buffer, 0, bytesRead);
+                }
+                return cacheFile.getAbsolutePath();
+            } catch (Exception e) {
+                Log.e("SAF", "Failed to copy file to cache", e);
+                return null;
+            } finally {
+                try { if (is != null) is.close(); } catch (Exception e) {}
+                try { if (os != null) os.close(); } catch (Exception e) {}
+            }
+        }
+
+        private String getFileNameFromUri(Uri uri) {
+            String result = null;
+            if ("content".equals(uri.getScheme())) {
+                Cursor cursor = getContentResolver().query(uri, null, null, null, null);
+                try {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                        if (index >= 0) result = cursor.getString(index);
+                    }
+                } finally {
+                    if (cursor != null) cursor.close();
+                }
+            }
+            if (result == null) {
+                result = uri.getLastPathSegment();
+            }
+            return result;
         }
 
         public static int openDevice() {

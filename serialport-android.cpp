@@ -3,7 +3,7 @@
 #include "headers/atarisio.h"
 #include "aspeqtsettings.h"
 
-#include <QTime>
+#include <QElapsedTimer>
 #include <QtDebug>
 
 #include <string.h>
@@ -339,7 +339,8 @@ QByteArray StandardSerialPortBackend::readRawFrame(uint size, bool verbose)
 
     total = 0;
     rest = size;
-    QTime startTime = QTime::currentTime();
+    QElapsedTimer timer;
+    timer.start();
     int bt_timeOut = 0;
     if (aspeqtSettings->serialPortInterface() == SIO2BT)
         bt_timeOut = 6000;
@@ -351,7 +352,7 @@ QByteArray StandardSerialPortBackend::readRawFrame(uint size, bool verbose)
         if (result < 0) result = 0;
         total += result;
         rest -= result;
-        elapsed = QTime::currentTime().msecsTo(startTime);
+        elapsed = -timer.elapsed();
     } while (total < size && elapsed > -timeOut);
 
     data.setRawData(rbuf, size);
@@ -387,7 +388,8 @@ bool StandardSerialPortBackend::writeRawFrame(const QByteArray &data)
 
     std::copy(data.constData(), data.constData()+rest, wbuf);
 
-    QTime startTime = QTime::currentTime();
+    QElapsedTimer timer;
+    timer.start();
     int timeOut = data.count() * 24000 / mSpeed + 200;
     int elapsed;
 
@@ -405,7 +407,7 @@ bool StandardSerialPortBackend::writeRawFrame(const QByteArray &data)
         }
         total += result;
         rest -= result;
-        elapsed = QTime::currentTime().msecsTo(startTime);
+        elapsed = -timer.elapsed();
     } while (total < (uint)data.count() && elapsed > -timeOut);
 
     if (total != (uint)data.count()) {

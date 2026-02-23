@@ -90,7 +90,7 @@
         "Project compiles without errors"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-006 for manifest permissions"
     },
     {
@@ -105,7 +105,7 @@
         "Project compiles without errors"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-007"
     },
     {
@@ -119,7 +119,7 @@
         "Project compiles without errors"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Prerequisite for SAF migration stories"
     },
     {

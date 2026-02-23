@@ -6,6 +6,10 @@ Started: Sun Feb 22 18:18:18 CET 2026
 - No Android build toolchain (gradle/SDK) available locally; validate XML with `xmllint --noout`
 - This is a Qt/C++ app with Android Java glue code in `android/src/net/greblus/`
 - No Java compiler (javac) available locally; validate Java changes by manual review
+- Git requires `DEVELOPER_DIR=/Library/Developer/CommandLineTools /Library/Developer/CommandLineTools/usr/bin/git` due to Xcode license issue
+- SerialActivity request codes: 2=REQUEST_BLUETOOTH_CONNECT, 3=REQUEST_ENABLE_BT (request code 1 for WRITE_EXTERNAL_STORAGE was removed in US-009)
+- Storage permissions (WRITE/READ_EXTERNAL_STORAGE) are limited to maxSdkVersion=28; SAF must be used on API 29+
+- For async UI↔background thread coordination, use `Object.wait()/notifyAll()` pattern (see requestBluetoothEnable/waitForBluetoothEnabled)
 ---
 
 ## 2026-02-22 - US-001
@@ -66,3 +70,43 @@ Thread: https://ampcode.com/threads/T-019c865f-fafd-72be-b0d3-d6cb0863bbc7
   - Use `android:maxSdkVersion="30"` to limit legacy permissions to pre-API 31 devices
   - `android:usesPermissionFlags="neverForLocation"` on BLUETOOTH_SCAN avoids requiring location permission
 ---
+
+## 2026-02-23 - US-007
+Thread: https://ampcode.com/threads/T-019c8a01-aee4-7129-9668-16a5ef24b201
+- Added `requestBluetoothPermission()` static method that checks `Build.VERSION.SDK_INT >= 31` and requests `BLUETOOTH_CONNECT` if not granted
+- Called from `changeDevice()` before creating `SIO2BT` instance
+- Added `onRequestPermissionsResult()` override with `REQUEST_BLUETOOTH_CONNECT` request code (2) to handle grant/deny with toast feedback
+- Files changed: `android/src/net/greblus/SerialActivity.java`
+- **Learnings for future iterations:**
+  - Existing code uses `this.checkSelfPermission()` / `this.requestPermissions()` directly (API 23+ Activity methods), no AndroidX/AppCompat dependency available
+  - Request code 1 is already used for `WRITE_EXTERNAL_STORAGE`; used 2 for `REQUEST_BLUETOOTH_CONNECT`
+  - `Manifest.permission.BLUETOOTH_CONNECT` requires API 31+ guard — always check `Build.VERSION.SDK_INT >= 31`
+  - Git on this machine requires `DEVELOPER_DIR=/Library/Developer/CommandLineTools` prefix due to Xcode license issue
+---
+
+## 2026-02-23 - US-008
+Thread: https://ampcode.com/threads/T-019c8a03-4eda-777c-8872-06a3bfd6dd56
+- Removed both `m_BluetoothAdapter.enable()` calls from SIO2BT.java (constructor line 35 and openDevice() line 45)
+- Replaced with `SerialActivity.requestBluetoothEnable()` which launches `BluetoothAdapter.ACTION_REQUEST_ENABLE` system intent
+- Added `waitForBluetoothEnabled(timeoutMs)` using `Object.wait()/notifyAll()` so openDevice() blocks until the user responds (30s timeout)
+- Added `onActivityResult()` in SerialActivity to handle the BT enable intent result and signal the waiting thread
+- Removed the busy-wait `while (!m_BluetoothAdapter.isEnabled()) {}` spin loop
+- Files changed: `android/src/net/greblus/SIO2BT.java`, `android/src/net/greblus/SerialActivity.java`
+- **Learnings for future iterations:**
+  - `BluetoothAdapter.enable()` is deprecated/removed on API 33+; must use `ACTION_REQUEST_ENABLE` intent instead
+  - `startActivityForResult()` must run on UI thread; background threads (like SIO worker) must use `runOnUiThread` + wait/notify pattern
+  - Request code 3 is now used for `REQUEST_ENABLE_BT` (1=storage, 2=bluetooth_connect, 3=bt_enable)
+  - `onActivityResult()` is called on the UI thread; use synchronized block with `notifyAll()` to wake background threads
+  ---
+
+  ## 2026-02-23 - US-009
+  Thread: https://ampcode.com/threads/T-019c8a05-83cc-720f-8c2c-202b4d3c2e0a
+  - Removed `android:requestLegacyExternalStorage="true"` from `<application>` element in AndroidManifest.xml
+  - Added `android:maxSdkVersion="28"` to both `WRITE_EXTERNAL_STORAGE` and `READ_EXTERNAL_STORAGE` permissions
+  - Removed the runtime `WRITE_EXTERNAL_STORAGE` permission request block from `SerialActivity.onCreate()` (was lines 68-73)
+  - Files changed: `android/AndroidManifest.xml`, `android/src/net/greblus/SerialActivity.java`
+  - **Learnings for future iterations:**
+  - `requestLegacyExternalStorage` was only effective on API 29 (Android 10); on API 30+ it's ignored, so removing it has no effect on older devices
+  - `maxSdkVersion="28"` means the storage permissions are only granted on API ≤28; on API 29+ the app must use SAF (Storage Access Framework) or MediaStore
+  - The runtime permission request for WRITE_EXTERNAL_STORAGE (request code 1) is no longer needed since the permission is capped at API 28
+  ---

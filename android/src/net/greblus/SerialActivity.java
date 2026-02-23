@@ -31,6 +31,7 @@ import android.Manifest;
 
 public class SerialActivity extends QtActivity
 {
+        private static final int REQUEST_BLUETOOTH_CONNECT = 2;
         private static boolean debug = false;
         protected static byte rb[] = new byte [65535];
         protected static byte wb[] = new byte [65535];
@@ -157,10 +158,39 @@ public class SerialActivity extends QtActivity
         public static void changeDevice(int type)
         {
             m_device.closeDevice();
-            if (type == 1)
+            if (type == 1) {
+                requestBluetoothPermission();
                 m_device = new SIO2BT();
-            else
+            } else
                 m_device = new SIO2PCUS4A();
+        }
+
+        public static void requestBluetoothPermission() {
+            if (Build.VERSION.SDK_INT >= 31) {
+                if (s_activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    s_activity.requestPermissions(
+                        new String[]{Manifest.permission.BLUETOOTH_CONNECT},
+                        REQUEST_BLUETOOTH_CONNECT);
+                }
+            }
+        }
+
+        @Override
+        public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+            if (requestCode == REQUEST_BLUETOOTH_CONNECT) {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.i("BT", "BLUETOOTH_CONNECT permission granted");
+                } else {
+                    Log.w("BT", "BLUETOOTH_CONNECT permission denied");
+                    s_activity.runOnUiThread(new Runnable() {
+                        public void run() {
+                            Toast.makeText(s_activity, "Bluetooth permission is required for SIO2BT", Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            }
         }
 
         public static int openDevice() {

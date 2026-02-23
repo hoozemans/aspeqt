@@ -19,6 +19,8 @@ import android.content.IntentFilter;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 
+import android.bluetooth.BluetoothAdapter;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -32,6 +34,9 @@ import android.Manifest;
 public class SerialActivity extends QtActivity
 {
         private static final int REQUEST_BLUETOOTH_CONNECT = 2;
+        private static final int REQUEST_ENABLE_BT = 3;
+        private static final Object bluetoothEnableLock = new Object();
+        private static volatile boolean bluetoothEnableComplete = false;
         private static boolean debug = false;
         protected static byte rb[] = new byte [65535];
         protected static byte wb[] = new byte [65535];
@@ -189,6 +194,53 @@ public class SerialActivity extends QtActivity
                             Toast.makeText(s_activity, "Bluetooth permission is required for SIO2BT", Toast.LENGTH_LONG).show();
                         }
                     });
+                }
+            }
+        }
+
+        public static void requestBluetoothEnable() {
+            if (s_activity == null) return;
+            BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+            if (adapter != null && adapter.isEnabled()) return;
+
+            synchronized (bluetoothEnableLock) {
+                bluetoothEnableComplete = false;
+            }
+
+            s_activity.runOnUiThread(new Runnable() {
+                public void run() {
+                    Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                    s_activity.startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+                }
+            });
+        }
+
+        public static boolean waitForBluetoothEnabled(long timeoutMs) {
+            BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+            if (adapter != null && adapter.isEnabled()) return true;
+
+            synchronized (bluetoothEnableLock) {
+                long deadline = System.currentTimeMillis() + timeoutMs;
+                while (!bluetoothEnableComplete) {
+                    long remaining = deadline - System.currentTimeMillis();
+                    if (remaining <= 0) break;
+                    try {
+                        bluetoothEnableLock.wait(remaining);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+            }
+            return adapter != null && adapter.isEnabled();
+        }
+
+        @Override
+        protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+            super.onActivityResult(requestCode, resultCode, data);
+            if (requestCode == REQUEST_ENABLE_BT) {
+                synchronized (bluetoothEnableLock) {
+                    bluetoothEnableComplete = true;
+                    bluetoothEnableLock.notifyAll();
                 }
             }
         }
